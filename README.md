@@ -24,14 +24,25 @@ Every plot against position is shaded the same way:
 
 The QNR and SCR shading comes from the numerical solution: a point counts as space charge when $|\rho/q|$ is more than 10% of the local doping. The dashed lines come from the textbook depletion approximation. Comparing the two is the point: the real space-charge region has Debye tails beyond the depletion edges.
 
-## How to run
+## Clone Repo
 
-[![Clone this repository](https://img.shields.io/badge/Clone-this%20repository-2ea44f?style=for-the-badge&logo=github&logoColor=white)](https://github.com/MostafaHassan0/MATLAB---Junction-Simulator)
-[![Download ZIP](https://img.shields.io/badge/Download-ZIP-0969da?style=for-the-badge&logo=github&logoColor=white)](https://github.com/MostafaHassan0/MATLAB---Junction-Simulator/archive/refs/heads/main.zip)
+### For Online MATLAB
 
+[![Open in MATLAB Online](https://www.mathworks.com/images/responsive/global/open-in-matlab-online.svg)](https://matlab.mathworks.com/open/github/v1?repo=MostafaHassan0/ELEC481) or
+```bash
+gitclone https://github.com/MostafaHassan0/MATLAB---Junction-Simulator.git
+```
+
+### For Desktop MATLAB
+
+[![Clone this repository](https://img.shields.io/badge/Clone-this%20repository-2ea44f?style=for-the-badge&logo=github&logoColor=white)](https://github.com/MostafaHassan0/MATLAB---Junction-Simulator) or [![Download ZIP](https://img.shields.io/badge/Download-ZIP-0969da?style=for-the-badge&logo=github&logoColor=white)](https://github.com/MostafaHassan0/MATLAB---Junction-Simulator/archive/refs/heads/main.zip)
 ```bash
 git clone https://github.com/MostafaHassan0/MATLAB---Junction-Simulator.git
 ```
+
+
+
+## How to run
 
 1. Clone the repository (or download the ZIP and unpack it). Keep the subfolders together.
 2. In MATLAB, `cd` into the folder and type `JunctionSimulatorApp`.
