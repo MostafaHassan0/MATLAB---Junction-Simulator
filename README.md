@@ -26,7 +26,14 @@ The QNR and SCR shading comes from the numerical solution: a point counts as spa
 
 ## How to run
 
-1. Copy the whole `MATLAB Junction App` folder anywhere (keep the subfolders).
+[![Clone this repository](https://img.shields.io/badge/Clone-this%20repository-2ea44f?style=for-the-badge&logo=github&logoColor=white)](https://github.com/MostafaHassan0/MATLAB---Junction-Simulator)
+[![Download ZIP](https://img.shields.io/badge/Download-ZIP-0969da?style=for-the-badge&logo=github&logoColor=white)](https://github.com/MostafaHassan0/MATLAB---Junction-Simulator/archive/refs/heads/main.zip)
+
+```bash
+git clone https://github.com/MostafaHassan0/MATLAB---Junction-Simulator.git
+```
+
+1. Clone the repository (or download the ZIP and unpack it). Keep the subfolders together.
 2. In MATLAB, `cd` into the folder and type `JunctionSimulatorApp`.
 3. Pick a preset or set your own layers. With **Live update** on, every change re-solves (about 0.2 to 1 s).
 
@@ -37,6 +44,8 @@ Other entry points:
 - `run_examples` simulates four devices without the GUI and saves PNGs in `figs/`. It also runs in GNU Octave.
 - `run_tests` checks the physics core against the M&K Ch. 4 formulas ($V_{bi}$, $W$, $\mathcal{E}_{max}$, $C_j$, the InP/InGaAs offset and the QFL split $qV$). All ten checks passed in Octave 8.
 - **Open in figure windows** and **Save PNGs...** in the app give normal figures you can edit, zoom or export.
+- **Full screen:** right-click any plot and choose *Full screen*, or press **Full screen (current tab)** to blow up the plots of the tab you are looking at. Press `Esc` (or the button in the corner) to leave.
+- **Save preset...** stores the current layers, doping, widths and biases as a `.json` file in `presets/`. Your presets appear in the Preset list marked with `*`, and **Delete preset** removes the selected one. You can copy preset files between machines or edit them by hand.
 
 ## Controls
 
@@ -107,5 +116,6 @@ materials/               one .m file per material (300 K)
 materials/pairs/         measured band-offset overrides
 core/                    physics: device build, junction, Poisson, I-V, C-V, summary
 plots/                   one function per plot (works on uiaxes and normal axes)
-figs/                    example output from run_examples (made in Octave)
-```
+figs/                    example output from run_examples (made in Octave) and can put saved pngs in it (only for desktop MATLAB)
+tests/                   checks against textbook formulas and a batch example, saves PNGs to figs/
+```                        

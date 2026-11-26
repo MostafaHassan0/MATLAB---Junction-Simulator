@@ -24,7 +24,10 @@ typeItems = {'Donors (n-type)', 'Acceptors (p-type)'};
 R = [];                                   % last simulation result
 
 % ---------------------------------------------------------------- presets
-P = presets();
+% built-in presets + your own saved presets (one .json file each in ./presets)
+presetDir = fullfile(root, 'presets');
+if ~isfolder(presetDir), mkdir(presetDir); end
+P = [presets(), loadCustomPresets(presetDir)];
 
 % ---------------------------------------------------------------- window
 fig = uifigure('Name', 'Junction Simulator - ELEC 6221', 'Position', [30 40 1580 900]);
@@ -33,12 +36,12 @@ gl.ColumnWidth = {350, '1x'}; gl.Padding = [6 6 6 6];
 
 % ---------------------------------------------------------------- controls
 cp = uipanel(gl, 'Title', 'Device'); cp.Layout.Row = 1; cp.Layout.Column = 1;
-g  = uigridlayout(cp, [26 4]);
-g.RowHeight = [repmat({24}, 1, 19), {'1x'}, repmat({24}, 1, 6)];
+g  = uigridlayout(cp, [28 4]);
+g.RowHeight = [repmat({24}, 1, 21), {'1x'}, repmat({24}, 1, 6)];
 g.ColumnWidth = {'1.25x', '1x', '1x', '0.85x'}; g.RowSpacing = 5; g.Padding = [8 8 8 8];
 
 lbl(1, 1, 'Preset');
-ddPreset = uidropdown(g, 'Items', [{'(custom)'}, {P.name}], 'Value', '(custom)', ...
+ddPreset = uidropdown(g, 'Items', [{'(custom)'}, {P.label}], 'Value', '(custom)', ...
     'ValueChangedFcn', @(~,~) applyPreset());
 put(ddPreset, 1, [2 4]);
 
@@ -85,11 +88,15 @@ b = uibutton(g, 'Text', 'Update', 'ButtonPushedFcn', @(~,~) runSim()); put(b, 15
 b = uibutton(g, 'Text', 'Open in figure windows', 'ButtonPushedFcn', @(~,~) popOut()); put(b, 16, [1 2]);
 b = uibutton(g, 'Text', 'Save PNGs...', 'ButtonPushedFcn', @(~,~) savePNG()); put(b, 16, [3 4]);
 
+b = uibutton(g, 'Text', 'Full screen (current tab)', 'ButtonPushedFcn', @(~,~) fullScreen('tab')); put(b, 17, [1 4]);
+b = uibutton(g, 'Text', 'Save preset...', 'ButtonPushedFcn', @(~,~) savePreset()); put(b, 18, [1 2]);
+b = uibutton(g, 'Text', 'Delete preset', 'ButtonPushedFcn', @(~,~) deletePreset()); put(b, 18, [3 4]);
+
 lblKind = uilabel(g, 'Text', '', 'FontWeight', 'bold', 'WordWrap', 'on');
-put(lblKind, [17 18], [1 4]);
-h = lbl(19, [1 4], 'Notes'); h.FontWeight = 'bold';
+put(lblKind, [19 20], [1 4]);
+h = lbl(21, [1 4], 'Notes'); h.FontWeight = 'bold';
 taNotes = uitextarea(g, 'Editable', 'off', 'FontSize', 11);
-put(taNotes, [20 26], [1 4]);
+put(taNotes, [22 28], [1 4]);
 
 % ---------------------------------------------------------------- plots
 tg = uitabgroup(gl); tg.Layout.Row = 1; tg.Layout.Column = 2;
@@ -105,8 +112,17 @@ t4 = uitab(tg, 'Title', 'Summary');
 g4 = uigridlayout(t4, [1 1]);
 taSum = uitextarea(g4, 'Editable', 'off', 'FontName', 'Consolas', 'FontSize', 12);
 
+% right-click any plot -> Full screen (Esc leaves full screen)
+plotAxes = [ax, {axI1, axI2, axC1, axC2}];
+plotKind = {1, 2, 3, 4, 5, 6, 'iv', 'iv', 'cv', 'cv'};
+for k = 1:numel(plotAxes)
+    cm = uicontextmenu(fig);
+    uimenu(cm, 'Text', 'Full screen', 'MenuSelectedFcn', @(~,~) fullScreen(plotKind{k}));
+    plotAxes{k}.ContextMenu = cm;
+end
+
 % start with the first preset
-ddPreset.Value = P(1).name;
+ddPreset.Value = P(1).label;
 applyPreset();
 
 % ================================================================ nested
@@ -119,24 +135,125 @@ applyPreset();
     end
 
     function applyPreset()
-        i = find(strcmp({P.name}, ddPreset.Value), 1);
+        i = find(strcmp({P.label}, ddPreset.Value), 1);
         if isempty(i), return; end
         p = P(i);
+        missing = setdiff(p.mat, names);
+        if ~isempty(missing)
+            uialert(fig, ['Material(s) not found in ./materials: ' strjoin(missing, ', ')], 'Preset error');
+            return
+        end
         for kk = 1:3
             if kk > numel(p.mat)
                 ddMat{kk}.Value = 'none'; continue
             end
             ddMat{kk}.Value  = p.mat{kk};
             ddType{kk}.Value = typeItems{1 + (p.type(kk) == 'p')};
-            efN{kk}.Value    = sprintf('%.3g', p.N(kk));
+            efN{kk}.Value    = sprintf('%.6g', p.N(kk));
+            if ~p.auto && kk <= numel(p.W), efW{kk}.Value = p.W(kk); end
         end
         for jj = 1:2
             efV{jj}.Value = abs(p.V(jj));
             if p.V(jj) < 0, ddDir{jj}.Value = 'Reverse'; else, ddDir{jj}.Value = 'Forward'; end
         end
-        cbAuto.Value = true;
+        cbAuto.Value = p.auto;
         enableControls();
         runSim();
+    end
+
+    function savePreset()
+        % store the current controls as one .json file in ./presets
+        try
+            nL = 2 + ~strcmp(ddMat{3}.Value, 'none');
+            q = struct('name', '', 'mat', {cell(1, nL)}, 'type', repmat('n', 1, nL), ...
+                'N', zeros(1, nL), 'W', zeros(1, nL), 'V', zeros(1, 2), 'auto', logical(cbAuto.Value));
+            for kk = 1:nL
+                q.mat{kk} = ddMat{kk}.Value;
+                if strcmp(ddType{kk}.Value, typeItems{2}), q.type(kk) = 'p'; end
+                q.N(kk) = str2double(efN{kk}.Value);
+                if ~isfinite(q.N(kk)) || q.N(kk) <= 0
+                    error('Doping of layer %d is not a valid number.', kk);
+                end
+                q.W(kk) = efW{kk}.Value;
+            end
+            for jj = 1:(nL - 1)
+                q.V(jj) = efV{jj}.Value;
+                if strcmp(ddDir{jj}.Value, 'Reverse'), q.V(jj) = -q.V(jj); end
+            end
+        catch err
+            uialert(fig, err.message, 'Cannot save preset'); return
+        end
+        answer = inputdlg('Preset name:', 'Save preset', [1 50], {''});
+        figure(fig);
+        if isempty(answer) || isempty(strtrim(answer{1})), return; end
+        q.name = strtrim(answer{1});
+        file = fullfile(presetDir, [regexprep(q.name, '[^\w\- ]', '_') '.json']);
+        if isfile(file)
+            sel = uiconfirm(fig, sprintf('Preset "%s" already exists. Overwrite it?', q.name), ...
+                'Overwrite preset', 'Options', {'Overwrite', 'Cancel'}, 'DefaultOption', 2, 'CancelOption', 2);
+            if ~strcmp(sel, 'Overwrite'), return; end
+        end
+        fid = fopen(file, 'w');
+        if fid < 0, uialert(fig, ['Cannot write ' file], 'Cannot save preset'); return; end
+        try, txt = jsonencode(q, 'PrettyPrint', true); catch, txt = jsonencode(q); end   % PrettyPrint needs R2021a
+        fprintf(fid, '%s', txt);
+        fclose(fid);
+        refreshPresets(q.name);
+    end
+
+    function deletePreset()
+        i = find(strcmp({P.label}, ddPreset.Value), 1);
+        if isempty(i) || ~P(i).custom
+            uialert(fig, 'Select one of your saved presets (marked with *) to delete it.', 'Delete preset');
+            return
+        end
+        sel = uiconfirm(fig, sprintf('Delete preset "%s"?', P(i).name), 'Delete preset', ...
+            'Options', {'Delete', 'Cancel'}, 'DefaultOption', 2, 'CancelOption', 2);
+        if ~strcmp(sel, 'Delete'), return; end
+        delete(P(i).file);
+        refreshPresets('');
+    end
+
+    function refreshPresets(select)
+        P = [presets(), loadCustomPresets(presetDir)];
+        ddPreset.Items = [{'(custom)'}, {P.label}];
+        i = find(strcmp({P.name}, select) & [P.custom], 1);
+        if isempty(i), ddPreset.Value = '(custom)'; else, ddPreset.Value = P(i).label; end
+    end
+
+    function fullScreen(kind)
+        % kind: 1..6 one position plot, 'iv', 'cv', or 'tab' (whatever tab is showing)
+        if isempty(R), return; end
+        if strcmp(kind, 'tab')
+            switch find(tg.SelectedTab == [t1 t2 t3 t4], 1)
+                case 1, kind = 0;
+                case 2, kind = 'iv';
+                case 3, kind = 'cv';
+                otherwise, return
+            end
+        end
+        f = figure('Color', 'w', 'NumberTitle', 'off', 'Name', 'Junction plot - full screen', ...
+            'Visible', 'off', 'MenuBar', 'none', 'ToolBar', 'figure');
+        fcn = {@jsim_plot_bands, @jsim_plot_field, @jsim_plot_potential, ...
+               @jsim_plot_charge, @jsim_plot_carriers, @jsim_plot_alignment};
+        if isnumeric(kind) && kind == 0          % all six position plots
+            for k = 1:6, fcn{k}(subplot(2, 3, k, 'Parent', f), R); end
+        elseif isnumeric(kind)                   % one position plot
+            fcn{kind}(axes('Parent', f), R);
+        elseif strcmp(kind, 'iv')
+            jsim_plot_iv(subplot(1, 2, 1, 'Parent', f), subplot(1, 2, 2, 'Parent', f), R);
+        else
+            jsim_plot_cv(subplot(1, 2, 1, 'Parent', f), subplot(1, 2, 2, 'Parent', f), R);
+        end
+        uicontrol(f, 'Style', 'pushbutton', 'String', 'Exit full screen (Esc)', 'Units', 'normalized', ...
+            'Position', [0.85 0.968 0.14 0.028], 'Callback', @(~,~) close(f));
+        f.KeyPressFcn = @(~, e) escClose(f, e);
+        try, f.WindowState = 'fullscreen'; catch, f.WindowState = 'maximized'; end
+        f.Visible = 'on';
+    end
+
+    function escClose(f, e)
+        if strcmp(e.Key, 'escape'), close(f); end
     end
 
     function changed()
@@ -219,7 +336,7 @@ applyPreset();
         jsim_plot_all(R, 'on');
     end
 
-    function savePNG()
+    function savePNG()  % Only works for desktop MATLAB, not MATLAB Online.
         if isempty(R), return; end
         d = uigetdir(root, 'Folder for the PNG files');
         figure(fig);
@@ -252,4 +369,27 @@ S = {
 };
 P = struct('name', S(:,1), 'mat', S(:,2), 'type', S(:,3), 'N', S(:,4), 'V', S(:,5));
 P = P(:)';
+for k = 1:numel(P)
+    P(k).label = P(k).name; P(k).W = []; P(k).auto = true; P(k).custom = false; P(k).file = '';
+end
+end
+
+function C = loadCustomPresets(dirName)
+% Read every *.json preset in dirName (written by "Save preset...").
+C = struct('name', {}, 'mat', {}, 'type', {}, 'N', {}, 'V', {}, 'label', {}, 'W', {}, 'auto', {}, 'custom', {}, 'file', {});
+f = dir(fullfile(dirName, '*.json'));
+for k = 1:numel(f)
+    file = fullfile(f(k).folder, f(k).name);
+    try
+        q = jsondecode(fileread(file));
+        c.name = char(q.name); c.mat = cellstr(q.mat)'; c.type = char(q.type);
+        c.N = double(q.N(:))'; c.V = double(q.V(:))'; c.V(end+1:2) = 0;
+        c.label = ['* ' c.name]; c.W = double(q.W(:))'; c.auto = logical(q.auto);
+        c.custom = true; c.file = file;
+        C(end+1) = c; %#ok<AGROW>
+    catch err
+        warning('Skipping preset %s: %s', f(k).name, err.message);
+    end
+end
+if ~isempty(C), [~, o] = sort(lower({C.name})); C = C(o); end
 end
